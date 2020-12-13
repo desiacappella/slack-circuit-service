@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/slack-go/slack"
 )
@@ -37,29 +38,38 @@ func slackGetDirectors() {
 	}
 
 	// Use api.GetUsersInfo if needed
+	fmt.Println(userIds)
 }
 
 func slackGetOfficerEmails() {
 	officerC, _ := slackGetChannelByName("circuit-officers")
-	audioC, err := slackGetChannelByName("circuit-audio-production")
-	if err != nil {
-		epanic(err, "no find new chan")
-	}
-
 	newUsers, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: officerC.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get officers members")
 	}
 
+	audioC, _ := slackGetChannelByName("circuit-audio-production")
 	oldUsers, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: audioC.ID, Limit: 200})
 	if err != nil {
-		epanic(err, "can't get officers members")
+		epanic(err, "can't get audio members")
 	}
 
 	// Filter out from newUsers
-
-	_, err = api.InviteUsersToConversation(newC.ID, newUsers...)
-	if err != nil {
-		epanic(err, "unable to invite users to conversation")
+	usersToAdd := []string{}
+outer:
+	for _, u := range newUsers {
+		for _, u2 := range oldUsers {
+			if u == u2 {
+				continue outer
+			}
+		}
+		usersToAdd = append(usersToAdd, u)
 	}
+
+	fmt.Println(strings.Join(usersToAdd, ","))
+
+	// _, err = api.InviteUsersToConversation(audioC.ID, usersToAdd...)
+	// if err != nil {
+	// 	epanic(err, "unable to invite users to conversation")
+	// }
 }
