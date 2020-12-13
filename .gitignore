@@ -1,1 +1,4 @@
-userToken
+slackUserToken
+jotformApiKey
+
+*.json
