@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/slack-go/slack"
 )
 
@@ -10,45 +12,54 @@ const typePrivateChannel = "private_channel"
 
 var api = slack.New(getToken(slackToken))
 
-func slackGetChannelMembers(channelName string) []string {
-	// 1. Find comp-2021-directors
+func slackGetChannelByName(channelName string) (slack.Channel, error) {
 	channels, _, err := api.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}})
 	if err != nil {
 		epanic(err, "can't get user's channels")
 	}
 
-	var channel slack.Channel
 	for _, c := range channels {
 		if c.Name == channelName {
-			channel = c
-			break
+			return c, nil
 		}
 	}
 
-	// TODO check if channel was never found
+	return slack.Channel{}, fmt.Errorf("No channel found")
+}
 
-	// 2. Get all members
+func slackGetDirectors() {
+	channel, _ := slackGetChannelByName("comp-2021-directors")
+
+	// Get all members
 	userIds, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get channel's members")
 	}
 
-	return userIds
-}
-
-func slackGetDirectors() {
-	channelName := "comp-2021-directors"
-
-	slackGetChannelMembers(channelName)
 	// Use api.GetUsersInfo if needed
 }
 
 func slackGetOfficerEmails() {
-	channelName := "circuit-officers"
+	officerC, _ := slackGetChannelByName("circuit-officers")
+	audioC, err := slackGetChannelByName("circuit-audio-production")
+	if err != nil {
+		epanic(err, "no find new chan")
+	}
 
-	slackGetChannelMembers(channelName)
+	newUsers, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: officerC.ID, Limit: 200})
+	if err != nil {
+		epanic(err, "can't get officers members")
+	}
 
-	// Get channel ID of audio-production
+	oldUsers, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: audioC.ID, Limit: 200})
+	if err != nil {
+		epanic(err, "can't get officers members")
+	}
 
-	// api.InviteUserToChannel()
+	// Filter out from newUsers
+
+	_, err = api.InviteUsersToConversation(newC.ID, newUsers...)
+	if err != nil {
+		epanic(err, "unable to invite users to conversation")
+	}
 }
