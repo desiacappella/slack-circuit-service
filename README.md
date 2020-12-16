@@ -7,3 +7,13 @@ A Slack bot that will provide automation services for circuit members.
 - Organize and allow ASA board members to quickly see who is part of which team. Eventually tying this to Ekta membership would be godlike
 - Potentially automatically create a "team channel" if any of the captains would like that
 - Automatically move captains who have graduated into the #circuit-alumni channel and out of the #circuit-officers channel
+
+## Slackbot commands
+
+### Available to guests
+
+| Command                 | Behavior                               |
+| ----------------------- | -------------------------------------- |
+| `list`                  | list all circuit-accessible channels   |
+| `join <channel>`        | join a circuit-accessible channel      |
+| `directors <A3 \| ASA>` | list Slack info of ASA or A3 directors |

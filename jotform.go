@@ -74,18 +74,25 @@ func jotformGetInactiveCaptains() {
 		resp := x.(map[string]interface{})
 
 		answers := resp["answers"].(map[string]interface{})
+		var email string
+		graduated := false
+
 		for _, a := range answers {
 			ac := a.(map[string]interface{})
-			if strings.Index(ac["name"].(string), "graduationYear") >= 0 {
+			if strings.Index(ac["name"].(string), "yourEmail") >= 0 {
+				email = ac["answer"].(string)
+			} else if strings.Index(ac["name"].(string), "graduationYear") >= 0 {
 				// found the right index
 				year := ac["answer"].(string)
-				fmt.Println("graduation year is", year)
-
 				if y, _ := strconv.Atoi(year); y <= latestGradYear {
 					// this foo be graduated
-					graduatedPeopleAnswers = append(graduatedPeopleAnswers, answers)
+					graduated = true
 				}
 			}
+		}
+
+		if graduated {
+			fmt.Println(email)
 		}
 	}
 
