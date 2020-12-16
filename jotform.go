@@ -19,6 +19,7 @@ const jotformURL = "https://api.jotform.com"
 // TODO get this programmatically via /user/forms/
 const formID = "92310716200139"
 
+// The last year that we want to purge, inclusive
 const latestGradYear = 2020
 
 func getSubmissions() map[string]interface{} {
