@@ -73,3 +73,7 @@ outer:
 	// 	epanic(err, "unable to invite users to conversation")
 	// }
 }
+
+func slackInviteOfficers(emails []string) {
+	// Not possible without Enterprise Grid. lovely
+}
