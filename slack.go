@@ -8,14 +8,16 @@ import (
 	"github.com/slack-go/slack"
 )
 
-const slackToken = "slackUserToken"
-
 const typePrivateChannel = "private_channel"
 
-var api = slack.New(getToken(slackToken))
+// Operate as a user
+var userAPI = slack.New(getToken("slackUserToken"))
+
+// Operate as a bot
+var botAPI = slack.New(getToken("slackBotToken"))
 
 func slackGetChannelByName(channelName string) (slack.Channel, error) {
-	channels, _, err := api.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}})
+	channels, _, err := userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}})
 	if err != nil {
 		epanic(err, "can't get user's channels")
 	}
@@ -33,7 +35,7 @@ func slackGetDirectors() {
 	channel, _ := slackGetChannelByName("comp-2021-directors")
 
 	// Get all members
-	userIds, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID, Limit: 200})
+	userIds, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get channel's members")
 	}
@@ -44,13 +46,13 @@ func slackGetDirectors() {
 
 func slackGetOfficerEmails() {
 	officerC, _ := slackGetChannelByName("circuit-officers")
-	newUsers, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: officerC.ID, Limit: 200})
+	newUsers, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: officerC.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get officers members")
 	}
 
 	audioC, _ := slackGetChannelByName("circuit-audio-production")
-	oldUsers, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: audioC.ID, Limit: 200})
+	oldUsers, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: audioC.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get audio members")
 	}
@@ -75,16 +77,12 @@ outer:
 	// }
 }
 
-func slackInviteOfficers(emails []string) {
-	// Not possible without Enterprise Grid. lovely
-}
-
 func slackCollectChannels() (allChannels []slack.Channel) {
 	var cursor string
 	for {
 		var channels []slack.Channel
 		var err error
-		channels, cursor, err = api.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}, Cursor: cursor})
+		channels, cursor, err = userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}, Cursor: cursor})
 		if err != nil {
 			epanic(err, "Can't get channels for user")
 		}
@@ -101,7 +99,7 @@ func slackCollectChannels() (allChannels []slack.Channel) {
 func addEmailToChannel(channel slack.Channel, email string, emailToIds map[string]string) string {
 	liaisonID, ok := emailToIds[email]
 	if !ok {
-		user, err := api.GetUserByEmail(email)
+		user, err := userAPI.GetUserByEmail(email)
 		if err != nil {
 			if err.Error() == "users_not_found" {
 				return "NEED TO ADD " + email
@@ -114,7 +112,7 @@ func addEmailToChannel(channel slack.Channel, email string, emailToIds map[strin
 	}
 
 	// Is the liaison already in?
-	members, _, err := api.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID})
+	members, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID})
 	if err != nil {
 		epanic(err, "can't list members")
 	}
@@ -126,7 +124,7 @@ func addEmailToChannel(channel slack.Channel, email string, emailToIds map[strin
 		}
 	}
 	if !found {
-		_, err := api.InviteUsersToConversation(channel.ID, liaisonID)
+		_, err := userAPI.InviteUsersToConversation(channel.ID, liaisonID)
 		if err != nil {
 			epanic(err, "Can't invite liaison")
 		}
@@ -165,7 +163,7 @@ func slackTeamChannels(teams []Team) {
 		var channelStatus string
 		if len(channel.ID) == 0 {
 			// Create channels
-			channel, err := api.CreateConversation(channelName, true)
+			channel, err := userAPI.CreateConversation(channelName, true)
 			time.Sleep(time.Second)
 			if err != nil {
 				channelStatus = err.Error()
@@ -185,4 +183,39 @@ func slackTeamChannels(teams []Team) {
 		fmt.Printf("%-25v | %-25v | %-25v | %-25v | %-25v\n", team.Name, channelName, channelStatus,
 			fmt.Sprintf("added %s (new: %v)", team.Liaison.Name, addedLiai), fmt.Sprintf("added %s (res: %s)", team.Captain.Name, addCapResult))
 	}
+}
+
+var farewellMsg = strings.Join([]string{
+	"Hi there! Our records show that you graduated from your team in 2020.",
+	"If this information is incorrect and you are still on your team, please reply with your updated graduation year in the *next 72 hours*.",
+	"If you have already graduated, we will move you to the #circuit-alumni channel and deactivate your account after 4 months of inactivity.",
+	"Thank you!",
+}, " ")
+
+func slackSendMessage(emails []string, message string) {
+	for _, email := range emails {
+		user, err := userAPI.GetUserByEmail(email)
+		if err != nil {
+			if err.Error() == "users_not_found" {
+				fmt.Printf("Unable to find user %s. Moving on...\n", email)
+				continue
+			} else {
+				epanic(err, "WHO AM I????")
+			}
+		}
+
+		msg := slack.MsgOptionText(message, true)
+
+		_, _, err = userAPI.PostMessage(user.ID, msg)
+		if err != nil {
+			epanic(err, "can't send message")
+		}
+
+		fmt.Println("Sent message to", email)
+	}
+}
+
+// Remove the given officers from #circuit-officers and add to #circuit-alumni
+func slackRemoveOldOfficers(subms []jotformSubm) {
+
 }

@@ -57,44 +57,55 @@ func getSubmissions() map[string]interface{} {
 	return processedBody
 }
 
-func jotformGetInactiveCaptains() {
+type jotformSubm struct {
+	Name     string
+	Email    string
+	GradYear int
+}
+
+func jotformGetInactiveCaptains() []jotformSubm {
 	data := getSubmissions()
 
-	fmt.Println("code", data["responseCode"].(float64))
+	if data["responseCode"].(float64) != 200 {
+		epanic(fmt.Errorf("Failed to get submissions"), "Failed to get submissions")
+	}
 
 	// Get people who have already graduated
 	submissions := data["content"].([]interface{})
 
-	fmt.Println("num responses", len(submissions))
-
-	graduatedPeopleAnswers := make([]map[string]interface{}, 0)
+	// graduatedPeopleAnswers := make([]map[string]interface{}, 0)
+	var graduatedPeople []jotformSubm
 
 	for _, x := range submissions {
 		// Get graduation year
 		resp := x.(map[string]interface{})
 
 		answers := resp["answers"].(map[string]interface{})
-		var email string
 		graduated := false
+		var subm jotformSubm
 
 		for _, a := range answers {
 			ac := a.(map[string]interface{})
-			if strings.Index(ac["name"].(string), "yourEmail") >= 0 {
-				email = ac["answer"].(string)
+			if strings.Index(ac["name"].(string), "name") >= 0 {
+				subm.Name = ac["prettyFormat"].(string)
+			} else if strings.Index(ac["name"].(string), "yourEmail") >= 0 {
+				subm.Email = ac["answer"].(string)
 			} else if strings.Index(ac["name"].(string), "graduationYear") >= 0 {
 				// found the right index
-				year := ac["answer"].(string)
-				if y, _ := strconv.Atoi(year); y <= latestGradYear {
-					// this foo be graduated
-					graduated = true
+				year, err := strconv.Atoi(strings.TrimSpace(ac["answer"].(string)))
+				if err == nil {
+					subm.GradYear = year
+					graduated = year <= latestGradYear
 				}
 			}
 		}
 
 		if graduated {
-			fmt.Println(email)
+			graduatedPeople = append(graduatedPeople, subm)
 		}
 	}
 
-	fmt.Println("we have", len(graduatedPeopleAnswers), "graduated people")
+	fmt.Println("we have", len(graduatedPeople), "graduated people")
+
+	return graduatedPeople
 }
