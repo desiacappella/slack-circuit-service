@@ -30,18 +30,24 @@ type Person struct {
 
 // Team is
 type Team struct {
+	ID         string
 	Name       string
 	University string
 	Liaison    Person
 	Captain    Person
 	Officers   []Person
+	MirchiLink string
 }
 
 var unusualMapping = map[string]string{
-	"New York Masti": "masti",
+	"New York Masti":          "masti",
+	"Awaaz":                   "uw-awaaz",
+	"Nuttin But V.O.C.A.L.S.": "nbv",
+	"Madhura SJSU":            "madhura",
+	"UC Davis Jhankaar":       "jhankaar",
 }
 
-func parseTeams() []Team {
+func parseTeamsFromCaptains() []Team {
 	teamsFile, err := os.OpenFile("captains.csv", os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		panic(err)
@@ -62,6 +68,7 @@ func parseTeams() []Team {
 
 		team := Team{
 			Name:       record[0],
+			ID:         teamToID(record[0]),
 			University: record[1],
 			Liaison: Person{
 				record[2],
@@ -86,4 +93,71 @@ func parseTeams() []Team {
 	}
 
 	return teams
+}
+
+func parseTeamsFromMirchi() []Team {
+	teamsFile, err := os.OpenFile("mirchi-teams.csv", os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+	defer teamsFile.Close()
+
+	r := csv.NewReader(teamsFile)
+
+	teams := []Team{}
+
+	// Ignore headers
+	r.Read()
+	for {
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+
+		teams = append(teams, Team{
+			Name:       record[0],
+			ID:         teamToID(record[0]),
+			MirchiLink: record[1],
+		})
+	}
+
+	return teams
+}
+
+func teamToID(team string) (id string) {
+	id, ok := unusualMapping[team]
+	if !ok {
+		replaced := strings.ToLower(team)
+		for _, s := range []string{"a cappella", "acappella", "acapella"} {
+			replaced = strings.ReplaceAll(replaced, s, "")
+		}
+		return strings.ReplaceAll(strings.TrimSpace(strings.Split(replaced, ":")[0]), " ", "-")
+	}
+	return id
+}
+
+func getTeamFromName(name string, teams []Team) int {
+	teamID := teamToID(name)
+
+	foundTeam := -1
+	for i, t := range teams {
+		if t.ID == teamID {
+			foundTeam = i
+			break
+		}
+	}
+
+	if foundTeam < 0 {
+		// Try cutting off the first word, could be university name
+		teamID = teamToID(name[strings.Index(name, " ")+1:])
+
+		for i, t := range teams {
+			if t.ID == teamID {
+				foundTeam = i
+				break
+			}
+		}
+	}
+
+	return foundTeam
 }

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -22,7 +23,7 @@ const formID = "92310716200139"
 // The last year that we want to purge, inclusive
 const latestGradYear = 2020
 
-func getSubmissions() map[string]interface{} {
+func getSubmissions() []jotformSubm {
 	data, err := ioutil.ReadFile(jotformCache)
 	if err != nil {
 		// Try API call
@@ -54,58 +55,130 @@ func getSubmissions() map[string]interface{} {
 	processedBody := make(map[string]interface{})
 	err = json.Unmarshal(data, &processedBody)
 
-	return processedBody
+	// Sanitize and extract
+	if processedBody["responseCode"].(float64) != 200 {
+		epanic(fmt.Errorf("Failed to get submissions"), "Failed to get submissions")
+	}
+
+	submissions := processedBody["content"].([]interface{})
+
+	var subms []jotformSubm
+
+	for _, x := range submissions {
+		resp := x.(map[string]interface{})
+
+		answers := resp["answers"].(map[string]interface{})
+		var subm jotformSubm
+
+		for _, a := range answers {
+			ac := a.(map[string]interface{})
+			if strings.HasPrefix(ac["name"].(string), "name") {
+				subm.Name = ac["prettyFormat"].(string)
+			} else if strings.HasPrefix(ac["name"].(string), "yourEmail") {
+				subm.Email = ac["answer"].(string)
+			} else if strings.HasPrefix(ac["name"].(string), "groupName") {
+				subm.TeamName = ac["answer"].(string)
+			} else if strings.HasPrefix(ac["name"].(string), "graduationYear") {
+				// found the right index
+				year, err := strconv.Atoi(strings.TrimSpace(ac["answer"].(string)))
+				if err == nil {
+					subm.GradYear = year
+				}
+			}
+		}
+
+		subms = append(subms, subm)
+	}
+
+	return subms
 }
 
 type jotformSubm struct {
 	Name     string
 	Email    string
 	GradYear int
+	TeamName string
 }
 
 func jotformGetInactiveCaptains() []jotformSubm {
-	data := getSubmissions()
+	submissions := getSubmissions()
 
-	if data["responseCode"].(float64) != 200 {
-		epanic(fmt.Errorf("Failed to get submissions"), "Failed to get submissions")
-	}
-
-	// Get people who have already graduated
-	submissions := data["content"].([]interface{})
-
-	// graduatedPeopleAnswers := make([]map[string]interface{}, 0)
 	var graduatedPeople []jotformSubm
 
-	for _, x := range submissions {
-		// Get graduation year
-		resp := x.(map[string]interface{})
-
-		answers := resp["answers"].(map[string]interface{})
-		graduated := false
-		var subm jotformSubm
-
-		for _, a := range answers {
-			ac := a.(map[string]interface{})
-			if strings.Index(ac["name"].(string), "name") >= 0 {
-				subm.Name = ac["prettyFormat"].(string)
-			} else if strings.Index(ac["name"].(string), "yourEmail") >= 0 {
-				subm.Email = ac["answer"].(string)
-			} else if strings.Index(ac["name"].(string), "graduationYear") >= 0 {
-				// found the right index
-				year, err := strconv.Atoi(strings.TrimSpace(ac["answer"].(string)))
-				if err == nil {
-					subm.GradYear = year
-					graduated = year <= latestGradYear
-				}
-			}
-		}
-
-		if graduated {
-			graduatedPeople = append(graduatedPeople, subm)
+	for _, s := range submissions {
+		if s.GradYear <= latestGradYear {
+			graduatedPeople = append(graduatedPeople, s)
 		}
 	}
 
 	fmt.Println("we have", len(graduatedPeople), "graduated people")
 
 	return graduatedPeople
+}
+
+func jotformGetTeams() []Team {
+	submissions := getSubmissions()
+
+	// Go through and create a map of team ID's to players. Then convert that into teams
+	// id -> name -> email
+	membership := make(map[string]map[string]string)
+
+	for _, s := range submissions {
+		if len(s.TeamName) <= 0 || s.GradYear <= latestGradYear {
+			continue
+		}
+
+		id := teamToID(s.TeamName)
+
+		if _, ok := membership[id]; !ok {
+			membership[id] = make(map[string]string)
+		}
+
+		// Prefer .edu emails
+		email, ok := membership[id][s.Name]
+		if !ok || !strings.HasSuffix(email, ".edu") {
+			membership[id][s.Name] = s.Email
+		}
+	}
+
+	var teams []Team
+
+	for teamName, playerSet := range membership {
+		team := Team{Name: teamName, Officers: make([]Person, len(playerSet))}
+
+		i := 0
+		for name, email := range playerSet {
+			team.Officers[i] = Person{Name: name, Email: email}
+			i++
+		}
+
+		teams = append(teams, team)
+	}
+
+	sort.SliceStable(teams, func(i, j int) bool {
+		return teams[i].Name < teams[j].Name
+	})
+	return teams
+}
+
+// For each team add officers
+func jotformUpdateOfficers(teams *[]Team) {
+	submissions := getSubmissions()
+
+	for _, s := range submissions {
+		if s.GradYear <= latestGradYear {
+			continue
+		}
+
+		foundTeam := getTeamFromName(s.TeamName, *teams)
+		if foundTeam < 0 {
+			fmt.Println("Did not map to a team:", s.TeamName)
+			continue
+		}
+
+		(*teams)[foundTeam].Officers = append((*teams)[foundTeam].Officers, Person{
+			Name:  s.Name,
+			Email: s.Email,
+		})
+	}
 }

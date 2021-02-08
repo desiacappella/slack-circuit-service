@@ -1,16 +1,42 @@
 package main
 
-import "fmt"
+import (
+	"sort"
+)
 
 func main() {
-	// slackRemoveOldOfficers()
-	subms := jotformGetInactiveCaptains()
+	teams := parseTeamsFromMirchi()
 
-	var emails []string
-	for _, s := range subms {
-		emails = append(emails, s.Email)
-		fmt.Println(s.Email)
+	for _, t := range teams {
+		slackSendToChannel("team-"+t.ID, mirchiMsg(t.MirchiLink))
+	}
+}
+
+func createNewChannels() {
+	teams := parseTeamsFromMirchi()
+	jotformUpdateOfficers(&teams)
+
+	sort.SliceStable(teams, func(i int, j int) bool {
+		return teams[i].ID < teams[j].ID
+	})
+
+	compTeams := parseTeamsFromCaptains()
+
+	filteredTeams := make([]Team, len(teams)-len(compTeams))
+	i := 0
+	for _, t := range teams {
+		add := true
+		for _, ct := range compTeams {
+			if ct.ID == t.ID {
+				add = false
+				break
+			}
+		}
+		if add {
+			filteredTeams[i] = t
+			i++
+		}
 	}
 
-	// slackSendMessage(emails, farewellMsg)
+	slackTeamChannels(filteredTeams, false)
 }

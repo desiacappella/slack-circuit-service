@@ -17,7 +17,7 @@ var userAPI = slack.New(getToken("slackUserToken"))
 var botAPI = slack.New(getToken("slackBotToken"))
 
 func slackGetChannelByName(channelName string) (slack.Channel, error) {
-	channels, _, err := userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}})
+	channels, _, err := userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}, Limit: 250})
 	if err != nil {
 		epanic(err, "can't get user's channels")
 	}
@@ -95,48 +95,7 @@ func slackCollectChannels() (allChannels []slack.Channel) {
 	return allChannels
 }
 
-// Returns true if newly added, false if already existing
-func addEmailToChannel(channel slack.Channel, email string, emailToIds map[string]string) string {
-	liaisonID, ok := emailToIds[email]
-	if !ok {
-		user, err := userAPI.GetUserByEmail(email)
-		if err != nil {
-			if err.Error() == "users_not_found" {
-				return "NEED TO ADD " + email
-			}
-			epanic(err, "Can't get user by email "+email)
-		}
-
-		emailToIds[email] = user.ID
-		liaisonID = user.ID
-	}
-
-	// Is the liaison already in?
-	members, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID})
-	if err != nil {
-		epanic(err, "can't list members")
-	}
-	found := false
-	for _, mem := range members {
-		if mem == liaisonID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		_, err := userAPI.InviteUsersToConversation(channel.ID, liaisonID)
-		if err != nil {
-			epanic(err, "Can't invite liaison")
-		}
-	}
-
-	if found {
-		return "already there"
-	}
-	return "newly added"
-}
-
-func slackTeamChannels(teams []Team) {
+func slackTeamChannels(teams []Team, create bool) {
 	// First check in unusual
 	// Random heuristics:
 	// - stop once you see a column
@@ -145,52 +104,106 @@ func slackTeamChannels(teams []Team) {
 	allChannels := slackCollectChannels()
 	emailToIds := make(map[string]string)
 
-	fmt.Printf("%-25v | %-25v | %-25v | %-25v | %-25v\n", "Team Name", "Channel Name", "Status", "Liaison", "Captain")
-	for _, team := range teams {
-		channelName, ok := unusualMapping[team.Name]
-		if !ok {
-			channelName = strings.ReplaceAll(strings.TrimSpace(strings.Split(strings.ReplaceAll(strings.ToLower(team.Name), "a cappella", ""), ":")[0]), " ", "-")
+	// Returns true if newly added, false if already existing
+	addEmailToChannel := func(channel slack.Channel, email string) string {
+		if len(email) == 0 {
+			return "invalid email"
 		}
-		channelName = "team-" + channelName
+
+		liaisonID, ok := emailToIds[email]
+		if !ok {
+			user, err := userAPI.GetUserByEmail(email)
+			if err != nil {
+				if err.Error() == "users_not_found" {
+					return "NEED TO ADD " + email
+				}
+				epanic(err, "Can't get user by email "+email)
+			}
+
+			emailToIds[email] = user.ID
+			liaisonID = user.ID
+		}
+
+		// Is the liaison already in?
+		members, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID})
+		if err != nil {
+			epanic(err, "can't list members")
+		}
+		found := false
+		for _, mem := range members {
+			if mem == liaisonID {
+				found = true
+				break
+			}
+		}
+		if found {
+			return "already there"
+		}
+
+		_, err = userAPI.InviteUsersToConversation(channel.ID, liaisonID)
+		if err != nil {
+			epanic(err, "Can't invite member")
+		}
+		return "newly added"
+	}
+
+	numCreated := 0
+	numNew := 0
+
+	for _, team := range teams {
+		channelName := "team-" + teamToID(team.Name)
 
 		var channel slack.Channel
-		for _, channel = range allChannels {
-			if channel.Name == channelName {
+		for _, _channel := range allChannels {
+			if _channel.Name == channelName {
+				channel = _channel
 				break
 			}
 		}
 
-		var channelStatus string
+		var _ string
 		if len(channel.ID) == 0 {
-			// Create channels
-			channel, err := userAPI.CreateConversation(channelName, true)
-			time.Sleep(time.Second)
-			if err != nil {
-				channelStatus = err.Error()
+			if create {
+				// Create channels
+				channel, err := userAPI.CreateConversation(channelName, true)
+				time.Sleep(time.Second)
+				if err != nil {
+					_ = err.Error()
+				} else {
+					numNew++
+					_ = "created successfully " + channel.ID
+				}
 			} else {
-				channelStatus = "created successfully " + channel.ID
+				numNew++
+				_ = "doesn't exist"
 			}
 		} else {
-			channelStatus = "already created"
+			numCreated++
+			_ = "already created"
 		}
 
 		// Add liaison
-		addedLiai := false // addEmailToChannel(channel, team.Liaison.Email, emailToIds)
+		addEmailToChannel(channel, team.Liaison.Email)
 
 		// Add captain
-		addCapResult := addEmailToChannel(channel, team.Captain.Email, emailToIds)
+		addEmailToChannel(channel, team.Captain.Email)
 
-		fmt.Printf("%-25v | %-25v | %-25v | %-25v | %-25v\n", team.Name, channelName, channelStatus,
-			fmt.Sprintf("added %s (new: %v)", team.Liaison.Name, addedLiai), fmt.Sprintf("added %s (res: %s)", team.Captain.Name, addCapResult))
+		// Add officers
+		for _, o := range team.Officers {
+			addEmailToChannel(channel, o.Email)
+			// fmt.Printf("[%s] Added %s: %s\n", channelName, o.Name, status)
+		}
+		if len(team.Officers) == 0 {
+			fmt.Println(team.Name)
+		}
+
+		// fmt.Printf("[%s] %s\n", channelName, channelStatus)
+		// fmt.Printf("%-25v | %-25v | %-25v | %-25v | %-25v\n", team.Name, channelName, channelStatus,
+		// 	fmt.Sprintf("added %s (new: %v)", team.Liaison.Name, addedLiai), fmt.Sprintf("added %s (res: %s)", team.Captain.Name, addCapResult))
 	}
-}
 
-var farewellMsg = strings.Join([]string{
-	"Hi there! Our records show that you graduated from your team in 2020.",
-	"If this information is incorrect and you are still on your team, please reply with your updated graduation year in the *next 72 hours*.",
-	"If you have already graduated, we will move you to the #circuit-alumni channel and deactivate your account after 4 months of inactivity.",
-	"Thank you!",
-}, " ")
+	fmt.Println("NEW CHANNELS", numNew, "ALREADY CREATED CHANNELS", numCreated)
+}
 
 func slackSendMessage(emails []string, message string) {
 	for _, email := range emails {
@@ -215,7 +228,26 @@ func slackSendMessage(emails []string, message string) {
 	}
 }
 
-// Remove the given officers from #circuit-officers and add to #circuit-alumni
+func slackSendToChannel(name string, message string) {
+	channel, err := slackGetChannelByName(name)
+	if err != nil {
+		epanic(err, "Can't find channel")
+	}
+
+	block := slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, message, false, false), nil, nil)
+	msg := slack.MsgOptionBlocks(block)
+
+	// msg := slack.MsgOptionText(message, true)
+
+	_, _, err = userAPI.PostMessage(channel.ID, msg)
+	if err != nil {
+		epanic(err, "can't send message")
+	}
+
+	fmt.Println("Sent message to", name)
+}
+
+// TODO: Remove the given officers from #circuit-officers and add to #circuit-alumni
 func slackRemoveOldOfficers(subms []jotformSubm) {
 
 }
