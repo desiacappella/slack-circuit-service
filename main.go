@@ -5,11 +5,7 @@ import (
 )
 
 func main() {
-	teams := parseTeamsFromMirchi()
-
-	for _, t := range teams {
-		slackSendToChannel("team-"+t.ID, mirchiMsg(t.MirchiLink))
-	}
+	slackAddToAllChannels("team-", "arjun@desiacappella.org")
 }
 
 func createNewChannels() {

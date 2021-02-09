@@ -251,3 +251,31 @@ func slackSendToChannel(name string, message string) {
 func slackRemoveOldOfficers(subms []jotformSubm) {
 
 }
+
+func slackAddToAllChannels(prefix string, email string) {
+	channels, _, err := userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}, Limit: 250})
+	if err != nil {
+		epanic(err, "can't get user's channels")
+	}
+
+	user, err := userAPI.GetUserByEmail(email)
+	if err != nil {
+		epanic(err, "can't find user")
+	}
+
+	for _, c := range channels {
+		if strings.HasPrefix(c.Name, prefix) {
+			_, err = userAPI.InviteUsersToConversation(c.ID, user.ID)
+			if err != nil {
+				if err.Error() == "already_in_channel" {
+					fmt.Println(c.Name, "already added")
+					continue
+				} else {
+					epanic(err, "can't invite")
+				}
+			}
+
+			fmt.Println(c.Name, "added")
+		}
+	}
+}
