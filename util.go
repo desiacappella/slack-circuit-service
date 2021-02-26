@@ -1,11 +1,8 @@
 package main
 
 import (
-	"encoding/csv"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"os"
 	"strings"
 )
 
@@ -47,83 +44,6 @@ var unusualMapping = map[string]string{
 	"UC Davis Jhankaar":       "jhankaar",
 }
 
-func parseTeamsFromCaptains() []Team {
-	teamsFile, err := os.OpenFile("captains.csv", os.O_RDONLY, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-	defer teamsFile.Close()
-
-	r := csv.NewReader(teamsFile)
-
-	teams := []Team{}
-
-	// Ignore headers
-	r.Read()
-	for {
-		record, err := r.Read()
-		if err == io.EOF {
-			break
-		}
-
-		team := Team{
-			Name:       record[0],
-			ID:         teamToID(record[0]),
-			University: record[1],
-			Liaison: Person{
-				record[2],
-				record[3],
-			},
-			Captain: Person{
-				Name:  record[4],
-				Email: record[5],
-			},
-		}
-
-		// Parse out officers
-		for i := 6; i < len(record); i += 2 {
-			if len(strings.TrimSpace(record[i])) == 0 {
-				break
-			}
-
-			team.Officers = append(team.Officers, Person{Name: record[i], Email: record[i+1]})
-		}
-
-		teams = append(teams, team)
-	}
-
-	return teams
-}
-
-func parseTeamsFromMirchi() []Team {
-	teamsFile, err := os.OpenFile("mirchi-teams.csv", os.O_RDONLY, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-	defer teamsFile.Close()
-
-	r := csv.NewReader(teamsFile)
-
-	teams := []Team{}
-
-	// Ignore headers
-	r.Read()
-	for {
-		record, err := r.Read()
-		if err == io.EOF {
-			break
-		}
-
-		teams = append(teams, Team{
-			Name:       record[0],
-			ID:         teamToID(record[0]),
-			MirchiLink: record[1],
-		})
-	}
-
-	return teams
-}
-
 func teamToID(team string) (id string) {
 	id, ok := unusualMapping[team]
 	if !ok {
@@ -160,4 +80,23 @@ func getTeamFromName(name string, teams []Team) int {
 	}
 
 	return foundTeam
+}
+
+func filterTeams(teams []Team, excludeIDs []string) []Team {
+	filtered := []Team{}
+
+	for _, t := range teams {
+		exclude := false
+		for _, n := range excludeIDs {
+			if t.ID == n {
+				exclude = true
+				break
+			}
+		}
+		if !exclude {
+			filtered = append(filtered, t)
+		}
+	}
+
+	return filtered
 }

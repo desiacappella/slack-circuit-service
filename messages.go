@@ -20,3 +20,12 @@ func mirchiMsg(link string) string {
 		"Please do lmk if you have any questions and goooood luck :))",
 	}, "\n\n")
 }
+
+var extensionMsg = strings.Join([]string{
+	"Hi <!channel> - hope you are doing well and hard at work on your second arrangement's performance video! I wanted to share some updates regarding the submission for Series 2.",
+	"As I'm sure you all know, Texas has been experiencing an ice and snowstorm causing extended power outages, lack of water, connectivity, and more. As a result, some of the Texas teams have been severely impacted and been unable to work on their performance videos at all over the last week and more.",
+	"In order to give them a fair amount of time to work on their videos, they have been granted an extension to submit their Series 2 videos by *March 5, 11:59PM PST*. We believe this is a reasonable time extension for teams who have been negatively impacted by circumstances outside their control.",
+	"If you have any questions or concerns, feel free to send them here and I would be happy to chat further about this situation. Thank you for being understanding, and good luck!",
+}, " ")
+
+var extension2Msg = "Just to clarify, the deadline for you is still *March 1, 11:59PM PST* - the extended deadline is only for the teams in Texas who were impacted and have reached out to us! Thank you for understanding! :)"

@@ -8,7 +8,12 @@ import (
 	"github.com/slack-go/slack"
 )
 
-const typePrivateChannel = "private_channel"
+const (
+	typePrivateChannel = "private_channel"
+	typePublicChannel  = "public_channel"
+)
+
+type channelType string
 
 // Operate as a user
 var userAPI = slack.New(getToken("slackUserToken"))
@@ -16,8 +21,8 @@ var userAPI = slack.New(getToken("slackUserToken"))
 // Operate as a bot
 var botAPI = slack.New(getToken("slackBotToken"))
 
-func slackGetChannelByName(channelName string) (slack.Channel, error) {
-	channels, _, err := userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{typePrivateChannel}, Limit: 250})
+func slackGetChannelByName(channelName string, channelType string) (slack.Channel, error) {
+	channels, _, err := userAPI.GetConversations(&slack.GetConversationsParameters{Types: []string{channelType}, Limit: 250})
 	if err != nil {
 		epanic(err, "can't get user's channels")
 	}
@@ -32,7 +37,7 @@ func slackGetChannelByName(channelName string) (slack.Channel, error) {
 }
 
 func slackGetDirectors() {
-	channel, _ := slackGetChannelByName("comp-2021-directors")
+	channel, _ := slackGetChannelByName("comp-2021-directors", typePrivateChannel)
 
 	// Get all members
 	userIds, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: channel.ID, Limit: 200})
@@ -45,13 +50,13 @@ func slackGetDirectors() {
 }
 
 func slackGetOfficerEmails() {
-	officerC, _ := slackGetChannelByName("circuit-officers")
+	officerC, _ := slackGetChannelByName("circuit-officers", typePrivateChannel)
 	newUsers, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: officerC.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get officers members")
 	}
 
-	audioC, _ := slackGetChannelByName("circuit-audio-production")
+	audioC, _ := slackGetChannelByName("circuit-audio-production", typePrivateChannel)
 	oldUsers, _, err := userAPI.GetUsersInConversation(&slack.GetUsersInConversationParameters{ChannelID: audioC.ID, Limit: 200})
 	if err != nil {
 		epanic(err, "can't get audio members")
@@ -228,8 +233,8 @@ func slackSendMessage(emails []string, message string) {
 	}
 }
 
-func slackSendToChannel(name string, message string) {
-	channel, err := slackGetChannelByName(name)
+func slackSendToChannel(name string, channelType string, message string) {
+	channel, err := slackGetChannelByName(name, channelType)
 	if err != nil {
 		epanic(err, "Can't find channel")
 	}

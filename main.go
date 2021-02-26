@@ -1,11 +1,20 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 )
 
 func main() {
-	slackAddToAllChannels("team-", "arjun@desiacappella.org")
+	teams := parseTeamsFromMatches()
+	filtered := filterTeams(teams, []string{"dhun", "dhunki", "basmati-beats", "hum", "anokha"})
+
+	fmt.Println(len(filtered))
+
+	for _, t := range filtered {
+		slackSendToChannel("team-"+t.ID, typePrivateChannel, extension2Msg)
+		// slackSendToChannel("asa-bot-test-channel", typePublicChannel, extensionMsg)
+	}
 }
 
 func createNewChannels() {
