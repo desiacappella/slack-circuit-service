@@ -4,3 +4,5 @@ jotformApiKey
 *.json
 *.csv
 *.txt
+
+*.exe

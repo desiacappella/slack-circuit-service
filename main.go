@@ -1,47 +1,41 @@
 package main
 
 import (
-	"fmt"
-	"sort"
+	"desiacappella.org/slack-circuit-service/slackservice"
 )
 
 func main() {
-	teams := parseTeamsFromMatches()
-	filtered := filterTeams(teams, []string{"dhun", "dhunki", "basmati-beats", "hum", "anokha"})
-
-	fmt.Println(len(filtered))
-
-	for _, t := range filtered {
-		slackSendToChannel("team-"+t.ID, typePrivateChannel, extension2Msg)
-		// slackSendToChannel("asa-bot-test-channel", typePublicChannel, extensionMsg)
-	}
+	s := slackservice.NewSlackService()
+	s.AddToAllChannels("team", "sabari@desiacappella.org")
 }
 
+/*
 func createNewChannels() {
-	teams := parseTeamsFromMirchi()
-	jotformUpdateOfficers(&teams)
+		teams := parseTeamsFromMirchi()
+		jotformUpdateOfficers(&teams)
 
-	sort.SliceStable(teams, func(i int, j int) bool {
-		return teams[i].ID < teams[j].ID
-	})
+		sort.SliceStable(teams, func(i int, j int) bool {
+			return teams[i].ID < teams[j].ID
+		})
 
-	compTeams := parseTeamsFromCaptains()
+		compTeams := parseTeamsFromCaptains()
 
-	filteredTeams := make([]Team, len(teams)-len(compTeams))
-	i := 0
-	for _, t := range teams {
-		add := true
-		for _, ct := range compTeams {
-			if ct.ID == t.ID {
-				add = false
-				break
+		filteredTeams := make([]Team, len(teams)-len(compTeams))
+		i := 0
+		for _, t := range teams {
+			add := true
+			for _, ct := range compTeams {
+				if ct.ID == t.ID {
+					add = false
+					break
+				}
+			}
+			if add {
+				filteredTeams[i] = t
+				i++
 			}
 		}
-		if add {
-			filteredTeams[i] = t
-			i++
-		}
-	}
 
-	slackTeamChannels(filteredTeams, false)
+		slackTeamChannels(filteredTeams, false)
 }
+*/

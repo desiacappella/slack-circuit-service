@@ -1,4 +1,4 @@
-package main
+package slackservice
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func parseTeamsFromCaptains() []Team {
+func ParseTeamsFromCaptains() []Team {
 	teamsFile, err := os.OpenFile("captains.csv", os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		panic(err)
@@ -56,7 +56,7 @@ func parseTeamsFromCaptains() []Team {
 	return teams
 }
 
-func parseTeamsFromMirchi() []Team {
+func ParseTeamsFromMirchi() []Team {
 	teamsFile, err := os.OpenFile("mirchi-teams.csv", os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		epanic(err, "Where the csv")
@@ -85,7 +85,7 @@ func parseTeamsFromMirchi() []Team {
 	return teams
 }
 
-func parseTeamsFromMatches() []Team {
+func ParseTeamsFromMatches() []Team {
 	matchesFile, err := os.OpenFile("twoMatches.txt", os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		epanic(err, "Where the matches")
