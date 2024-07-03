@@ -2,6 +2,7 @@ package slackservice
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -13,6 +14,11 @@ type ChannelType string
 const (
 	TypePrivateChannel ChannelType = "private_channel"
 	TypePublicChannel  ChannelType = "public_channel"
+)
+
+const (
+	PrefixTeam    = "team-"
+	PrefixCircuit = "circuit-"
 )
 
 type SlackService struct {
@@ -165,7 +171,7 @@ func (s *SlackService) TeamChannels(teams []Team, create bool) {
 	numNew := 0
 
 	for _, team := range teams {
-		channelName := "team-" + teamToID(team.Name)
+		channelName := PrefixTeam + teamToID(team.Name)
 
 		var channel slack.Channel
 		for _, _channel := range allChannels {
@@ -179,7 +185,10 @@ func (s *SlackService) TeamChannels(teams []Team, create bool) {
 		if len(channel.ID) == 0 {
 			if create {
 				// Create channels
-				channel, err := s.userAPI.CreateConversation(channelName, true)
+				channel, err := s.userAPI.CreateConversation(slack.CreateConversationParams{
+					ChannelName: channelName,
+					IsPrivate:   true,
+				})
 				time.Sleep(time.Second)
 				if err != nil {
 					_ = err.Error()
@@ -291,6 +300,42 @@ func (s *SlackService) AddToAllChannels(prefix string, email string) {
 			}
 
 			fmt.Println(c.Name, "added")
+		}
+	}
+}
+
+func (s *SlackService) GetChannelsByPrefix(prefix string) []string {
+	params := slack.GetConversationsParameters{ExcludeArchived: true, Types: []string{string(TypePrivateChannel), string(TypePublicChannel)}, Limit: 100}
+
+	channels := make([]string, 0)
+
+	for {
+		res, cursor, err := s.userAPI.GetConversations(&params)
+		if err != nil {
+			log.Fatalf("Failed to retrieve conversations: %v", err)
+		}
+
+		for _, c := range res {
+			if strings.HasPrefix(c.Name, prefix) {
+				channels = append(channels, c.ID)
+			}
+		}
+
+		if cursor == "" {
+			break
+		}
+
+		params.Cursor = cursor
+	}
+
+	return channels
+}
+
+func (s *SlackService) ArchiveAllChannels(channels []string) {
+	for _, c := range channels {
+		err := s.userAPI.ArchiveConversation(c)
+		if err != nil {
+			log.Fatalf("Failed to archive conversation %v: %v", c, err)
 		}
 	}
 }

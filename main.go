@@ -1,12 +1,49 @@
 package main
 
 import (
-	"desiacappella.org/slack-circuit-service/slackservice"
+	"encoding/json"
+	"log"
+	"os"
+
+	"github.com/desiacappella/slack-circuit-service/slackservice"
 )
+
+func collect(s *slackservice.SlackService) {
+	channels := s.GetChannelsByPrefix(slackservice.PrefixCircuit)
+	jsonString, err := json.MarshalIndent(channels, "", "\t")
+	if err != nil {
+		log.Fatalf("Failed to marshal JSON: %v", err)
+	}
+
+	err = os.WriteFile("circuit-ids.json", jsonString, 0644)
+	if err != nil {
+		log.Fatalf("Failed to write to JSON file: %v", err)
+	}
+}
+
+func archive(s *slackservice.SlackService) {
+	jsonString, err := os.ReadFile("circuit-ids.json")
+	if err != nil {
+		log.Fatalf("Failed to read JSON file: %v", err)
+	}
+
+	channels := make([]string, 0)
+	err = json.Unmarshal(jsonString, &channels)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal JSON string: %v", err)
+	}
+
+	s.ArchiveAllChannels(channels)
+}
 
 func main() {
 	s := slackservice.NewSlackService()
-	s.AddToAllChannels("team", "sabari@desiacappella.org")
+
+	if os.Args[1] == "collect" {
+		collect(s)
+	} else if os.Args[1] == "archive" {
+		archive(s)
+	}
 }
 
 /*

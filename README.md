@@ -8,6 +8,13 @@ A Slack bot that will provide automation services for circuit members.
 - Potentially automatically create a "team channel" if any of the captains would like that
 - Automatically move captains who have graduated into the #circuit-alumni channel and out of the #circuit-officers channel
 
+## Tokens:
+
+https://api.slack.com/apps/A01GA4V0C05/oauth?
+
+- `slackUserToken`: user token
+- `slackBotToken`: bot token
+
 ## Slackbot commands
 
 ### Available to guests
